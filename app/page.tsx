@@ -52,6 +52,8 @@ export default function HomePage() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); 
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
+  // NEW: State to store the final AI score from backend
+  const [displayedAIScore, setDisplayedAIScore] = useState<number | null>(null);
 
   // New state for dynamic loading message
   const [loadingMessage, setLoadingMessage] = useState<string>('Initializing...');
@@ -122,8 +124,6 @@ export default function HomePage() {
   // Helper to normalize newlines - now also used for output word count
   const normalizeOutputText = (text: string): string => {
     if (!text) return '';
-    // Replace multiple newlines with exactly two for consistent paragraph breaks,
-    // then trim any leading/trailing newlines.
     return text.replace(/\r\n|\r/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
   };
 
@@ -165,6 +165,7 @@ export default function HomePage() {
     setAnalysisResult(null); 
     setOutputText(''); 
     setError(null); 
+    setDisplayedAIScore(null); // NEW: Clear previous AI score
     setCurrentStep(0); // Reset step for humanize (will become 1 in useEffect if loading is true)
 
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
@@ -203,8 +204,7 @@ export default function HomePage() {
 
       const data = await response.json();
       setOutputText(normalizeOutputText(data.humanizedText));
-      // In a more advanced setup, backend could send currentStep updates
-      // Here, the messages just cycle, so no direct currentStep update here based on backend.
+      setDisplayedAIScore(data.finalAIScore); // NEW: Set the AI score received from backend
       
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -220,6 +220,7 @@ export default function HomePage() {
     setOutputText(''); 
     setAnalysisResult(null);
     setError(null);
+    setDisplayedAIScore(null); // NEW: Clear AI score for analysis mode
     setCurrentStep(5); // Set specific step for analyze loading message
 
     try {
@@ -311,7 +312,7 @@ export default function HomePage() {
                   {calculateWords(outputText)} words
                 </span>
               ) : null}
-              {outputText && !isLoading && !isAnalyzing && !analysisResult && ( // Show copy/share only if output text is ready and not loading/analyzing/analysis
+              {outputText && !isLoading && !isAnalyzing && !analysisResult && ( 
                 <div className="flex gap-2">
                   <button onClick={handleCopy} className="p-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors rounded">
                     {hasCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
@@ -347,6 +348,21 @@ export default function HomePage() {
                         style={{ lineHeight: '1.5em' }}
                     />
                 ) : null}
+
+                {/* NEW: Display the AI Score here */}
+                {displayedAIScore !== null && outputText && !analysisResult && (
+                    <div className="mt-4 p-3 bg-purple-100 dark:bg-purple-900 border border-purple-300 dark:border-purple-700 rounded-lg text-sm text-purple-800 dark:text-purple-200">
+                        <strong className="font-semibold">AI Detection Score: </strong> 
+                        <span className={displayedAIScore > 50 ? 'text-red-600 dark:text-red-400' : displayedAIScore > 10 ? 'text-orange-600 dark:text-orange-400' : 'text-green-600 dark:text-green-400'}>
+                            {displayedAIScore}%
+                        </span>
+                        <p className="mt-1">
+                            {displayedAIScore > 50 ? "This text still has significant AI patterns." : 
+                             displayedAIScore > 10 ? "Good, but still some AI patterns detected." : 
+                             "Great! This text is highly human-like."}
+                        </p>
+                    </div>
+                )}
                 
                 {analysisResult && (
                   <div className="space-y-2">
