@@ -1,10 +1,22 @@
 // app/api/personas/route.ts
+
 import { NextResponse } from 'next/server';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
+// Define Persona interface here for type safety
+interface Persona {
+  id: string;
+  name: string;
+  identity?: string;
+  voiceTone?: string;
+  coreRule?: string;
+  coreGoal?: string;
+  isCustom?: boolean;
+}
+
 // Cache variable outside the handler for serverless function to reuse across warm invocations
-let cachedPersonas: any[] | null = null;
+let cachedPersonas: Persona[] | null = null; // FIX: Changed type from any[] to Persona[]
 let cacheTimestamp: number = 0;
 const CACHE_LIFETIME = 5 * 60 * 1000; // 5 minutes in milliseconds (adjust as needed)
 
@@ -18,8 +30,8 @@ export async function GET() {
 
     const personasPath = path.join(process.cwd(), 'app', 'data', 'personas.json');
     const personasData = await fs.readFile(personasPath, 'utf-8');
-    const personas = JSON.parse(personasData);
-    
+    const personas: Persona[] = JSON.parse(personasData); // FIX: Explicitly cast JSON.parse result to Persona[]
+
     // Update cache
     cachedPersonas = personas;
     cacheTimestamp = Date.now();
