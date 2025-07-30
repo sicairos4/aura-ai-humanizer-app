@@ -6,7 +6,17 @@ import * as path from 'path';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// The core "gem" structure, broken into parts for dynamic insertion
+// Define a type for persona details expected from JSON/custom input for clarity
+interface PersonaDetails {
+  id?: string; // id is optional for custom persona details
+  name?: string; // name is optional for custom persona details sent to backend
+  identity: string;
+  voiceTone: string;
+  coreRule?: string;
+  coreGoal?: string;
+  isCustom?: boolean;
+}
+
 const AURA_GEM_PRE_PROFILE = `
 // --- STYLE PROTOCOL --- //
 
@@ -41,13 +51,12 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Required information is missing: input text or persona selection.' }, { status: 400 });
         }
 
-        let selectedPersona;
+        let selectedPersona: PersonaDetails; // Explicitly type selectedPersona
         if (personaId && personaId !== 'custom') { // Handle predefined personas
-            // IMPORTANT: Adjust this path if you placed personas.json elsewhere
             const personasPath = path.join(process.cwd(), 'app', 'data', 'personas.json');
             const personasData = await fs.readFile(personasPath, 'utf-8');
-            const personas = JSON.parse(personasData);
-            selectedPersona = personas.find((p: any) => p.id === personaId);
+            const personas: PersonaDetails[] = JSON.parse(personasData); // Explicitly type parsed personas
+            selectedPersona = personas.find((p: PersonaDetails) => p.id === personaId) as PersonaDetails; // Type the find result and assert
 
             if (!selectedPersona) {
                 return NextResponse.json({ error: `Predefined persona '${personaId}' not found.` }, { status: 404 });
@@ -56,7 +65,7 @@ export async function POST(req: NextRequest) {
             if (!customPersonaDetails.name || !customPersonaDetails.identity || !customPersonaDetails.voiceTone) {
                 return NextResponse.json({ error: 'Custom persona details are incomplete. Name, identity, and voiceTone are required.' }, { status: 400 });
             }
-            selectedPersona = { id: 'custom_generated', ...customPersonaDetails }; // Assign a unique ID for processing
+            selectedPersona = { id: 'custom_generated', ...customPersonaDetails } as PersonaDetails; // Assert type
         } else { // Fallback if no valid persona ID or custom details are provided
             return NextResponse.json({ error: 'Invalid persona selection or custom persona details missing.' }, { status: 400 });
         }
@@ -64,7 +73,7 @@ export async function POST(req: NextRequest) {
         const proModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
         // Build the specific PROFILE block for the selected persona
-        let personaProfileBlock = `[PROFILE: ${selectedPersona.name.toUpperCase()}]\n\n`;
+        let personaProfileBlock = `[PROFILE: ${selectedPersona.name?.toUpperCase() || 'CUSTOM'}]\n\n`; // Use optional chaining for name
         personaProfileBlock += `Identity: ${selectedPersona.identity}\n`;
         personaProfileBlock += `Voice & Tone: ${selectedPersona.voiceTone}\n`;
         // Conditionally add coreRule or coreGoal if they exist
@@ -78,7 +87,6 @@ export async function POST(req: NextRequest) {
         let fullPrompt = "";
 
         // Add the "MODE: ASHLEY" command ONLY if Ashley's persona is explicitly selected
-        // This leverages the internal command of your gem for that specific case.
         if (selectedPersona.id === 'ashley') {
             fullPrompt += `MODE: ASHLEY\n`;
         }
@@ -98,8 +106,14 @@ export async function POST(req: NextRequest) {
         const humanizedText = finalResult.response.text();
 
         return NextResponse.json({ humanizedText });
-    } catch (error: any) { // Catch as 'any' to access error.message
+    } catch (error: unknown) { // Use 'unknown' instead of 'any'
         console.error("Humanize API Error:", error);
-        return NextResponse.json({ error: 'Failed to humanize text.', details: error.message }, { status: 500 });
+        let errorMessage = 'An unknown error occurred.';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null && 'error' in error && typeof (error as any).error === 'string') {
+            errorMessage = (error as any).error; // Cast to any to access custom error properties if they exist
+        }
+        return NextResponse.json({ error: 'Failed to humanize text.', details: errorMessage }, { status: 500 });
     }
 }

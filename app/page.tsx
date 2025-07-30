@@ -1,9 +1,9 @@
 // app/page.tsx
-'use client'; // This directive is crucial for client-side components in Next.js App Router
+'use client'; 
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Sparkles, LoaderCircle, Copy, Check, Info, Share2, ChevronDown } from 'lucide-react';
-import { Header } from '@/components/Header'; // Assuming your Header component is located here
+import { Header } from '@/components/Header'; 
 
 // Define the type for a persona to improve type safety
 interface Persona {
@@ -13,77 +13,68 @@ interface Persona {
   voiceTone?: string;
   coreRule?: string;
   coreGoal?: string;
-  isCustom?: boolean; // Added for the 'custom' option
+  isCustom?: boolean;
 }
 
 export default function HomePage() {
   const [inputText, setInputText] = useState<string>('');
-  const [personas, setPersonas] = useState<Persona[]>([]); // State to store fetched personas
-  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('david'); // Default to David's voice or first available
+  const [personas, setPersonas] = useState<Persona[]>([]); 
+  const [selectedPersonaId, setSelectedPersonaId] = useState<string>('david'); 
   
-  // Custom persona details for the input fields
   const [customPersonaDetails, setCustomPersonaDetails] = useState<Omit<Persona, 'id' | 'isCustom'>>({
     name: '',
     identity: '',
     voiceTone: '',
-    coreRule: '', // Or coreGoal, depending on what the user defines
+    coreRule: '',
+    coreGoal: '',
   });
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [outputText, setOutputText] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<any>(null); // Assuming analysisResult structure
-  const [error, setError] = useState<string | null>(null); // Changed to string | null for clarity
+  const [analysisResult, setAnalysisResult] = useState<any>(null); // Keep as any if the analysis API's exact type is unknown
+  const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
 
-  // --- Initial Data Fetching ---
   useEffect(() => {
     async function fetchPersonasData() {
       try {
-        const res = await fetch('/api/personas'); // Fetch from your new API route
+        const res = await fetch('/api/personas'); 
         if (!res.ok) {
           throw new Error('Failed to fetch personas from API.');
         }
         const data: Persona[] = await res.json();
         
-        // Sort personas by name for display in dropdown, and set default
         const sortedPersonas = data.slice().sort((a, b) => a.name.localeCompare(b.name));
         setPersonas(sortedPersonas);
         
-        // Set an initial selected persona if 'david' is not found or is the only option
         if (sortedPersonas.length > 0) {
           const defaultPersona = sortedPersonas.find(p => p.id === 'david') || sortedPersonas[0];
           setSelectedPersonaId(defaultPersona.id);
         }
-      } catch (err: any) {
+      } catch (err: unknown) { // Use 'unknown' here
         console.error("Failed to load personas:", err);
-        setError(err.message || "Failed to load personas for selection.");
+        setError(err instanceof Error ? err.message : "Failed to load personas for selection.");
       }
     }
     fetchPersonasData();
-  }, []); // Empty dependency array means this runs once on component mount
+  }, []); 
 
-  // This useMemo is now less critical as the full persona object isn't always needed on frontend
-  // but it can still be useful for displaying persona description if you want to add it back
-  const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
+  // Remove the `useMemo` for `selectedPersona` if it's not being actively used in the JSX
+  // as it was generating a warning. If you intend to use `selectedPersona.description` or other
+  // properties directly in the UI later, you can put it back and use it.
+  // const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
 
-  // --- Helper to normalize newlines ---
-  // This function will remove excessive newlines, ensuring single spacing between paragraphs.
+
   const normalizeOutputText = (text: string): string => {
     if (!text) return '';
-    // Replace multiple newlines with exactly two for consistent paragraph breaks,
-    // then trim any leading/trailing newlines.
-    // .replace(/\r\n|\r/g, '\n') handles different line endings first.
-    // .replace(/\n\s*\n\s*\n/g, '\n\n') replaces three or more newlines (potentially with spaces) with two.
     return text.replace(/\r\n|\r/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
   };
 
 
-  // --- Handlers ---
   const handlePersonaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const id = event.target.value;
     setSelectedPersonaId(id);
-    // If "Custom Persona" is selected, reset custom details fields
     if (id === 'custom') {
       setCustomPersonaDetails({ name: '', identity: '', voiceTone: '', coreRule: '', coreGoal: '' });
     }
@@ -95,33 +86,31 @@ export default function HomePage() {
   };
 
   const handleHumanize = async () => {
-    if (!inputText.trim() || isLoading) return; // Disable if no input or already loading
+    if (!inputText.trim() || isLoading) return; 
 
     setIsLoading(true);
-    setAnalysisResult(null); // Clear previous analysis
-    setOutputText(''); // Clear previous output
-    setError(null); // Clear previous errors
+    setAnalysisResult(null); 
+    setOutputText(''); 
+    setError(null); 
 
-    let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom' | 'name'> }; // Exclude 'name' as it's not needed in customPersonaDetails sent to backend
+    let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
 
     if (selectedPersonaId === 'custom') {
-      // Validate custom persona fields before sending
       if (!customPersonaDetails.name.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()) {
         setError("Please provide a name, identity, and voice/tone for your custom persona.");
         setIsLoading(false);
         return;
       }
-      // Omit 'name' from customPersonaDetails when sending to backend, as the backend constructs the PROFILE block
       const { name, ...detailsWithoutName } = customPersonaDetails;
       payload = {
         inputText,
-        personaId: 'custom', // Indicate to the backend that this is a custom persona
-        customPersonaDetails: detailsWithoutName, // Send the cleaned custom object
+        personaId: 'custom', 
+        customPersonaDetails: detailsWithoutName, 
       };
     } else {
       payload = {
         inputText,
-        personaId: selectedPersonaId, // Just send the ID for predefined personas
+        personaId: selectedPersonaId, 
       };
     }
 
@@ -140,20 +129,18 @@ export default function HomePage() {
       }
 
       const data = await response.json();
-      // Apply the normalization to the humanized text before setting it
       setOutputText(normalizeOutputText(data.humanizedText));
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong.');
+    } catch (err: unknown) { // Use 'unknown' here
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Preserve existing handleAnalyze, handleCopy, handleShare functions
   const handleAnalyze = async () => {
     if (!inputText.trim() || isAnalyzing) return;
     setIsAnalyzing(true);
-    setOutputText(''); // Clear output text when analyzing
+    setOutputText(''); 
     setAnalysisResult(null);
     setError(null);
     try {
@@ -161,8 +148,8 @@ export default function HomePage() {
       if (!response.ok) throw new Error((await response.json()).error || 'An error occurred.');
       const data = await response.json();
       setAnalysisResult(data.analysisData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong.');
+    } catch (err: unknown) { // Use 'unknown' here
+      setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -180,7 +167,6 @@ export default function HomePage() {
     if (navigator.share && outputText) {
       navigator.share({ title: 'Text from Aura AI', text: outputText }).catch(console.error);
     } else {
-      // Fallback to copy if Web Share API is not available
       handleCopy();
     }
   };
@@ -329,19 +315,20 @@ export default function HomePage() {
                 <LoaderCircle className="animate-spin" /> Working...
               </div>
             ) : (
-              <div className="flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none overflow-y-auto"> {/* Added resize-none for consistency */}
+              <div className="flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none overflow-y-auto">
                 {error && <p className="text-red-500 whitespace-pre-wrap">{error}</p>}
                 
                 {/* Conditionally render textarea for outputText */}
-                {outputText && !analysisResult && (
+                {outputText && !analysisResult ? ( // Only render textarea if outputText exists AND no analysis result
                     <textarea
-                        value={normalizeOutputText(outputText)} /* Applied normalizeOutputText here */
+                        value={normalizeOutputText(outputText)}
                         readOnly
                         rows={15} 
                         className="w-full h-full p-0 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none focus:outline-none resize-none"
                         style={{ lineHeight: '1.5em' }}
                     />
-                )}
+                ) : null} {/* If outputText is empty or analysisResult exists, render nothing here */}
+                
                 {/* Conditionally render analysis result */}
                 {analysisResult && (
                   <div className="space-y-2">
