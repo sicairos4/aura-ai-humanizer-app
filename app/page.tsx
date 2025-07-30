@@ -1,11 +1,10 @@
 // app/page.tsx
 'use client'; 
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react'; // Removed useMemo import
 import { Sparkles, LoaderCircle, Copy, Check, Info, Share2, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header'; 
 
-// Define the type for a persona to improve type safety
 interface Persona {
   id: string;
   name: string;
@@ -16,13 +15,28 @@ interface Persona {
   isCustom?: boolean;
 }
 
+// Define a more specific type for analysisResult, assuming its structure based on previous logs
+interface AnalysisResult {
+  writing_style_name: string;
+  primary_tone: string;
+  language: string;
+  scores: {
+    clarity: number;
+    confidence: number;
+    formality: number;
+    engagement: number;
+  };
+  improvement_tips?: string[];
+}
+
+
 export default function HomePage() {
   const [inputText, setInputText] = useState<string>('');
   const [personas, setPersonas] = useState<Persona[]>([]); 
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('david'); 
   
   const [customPersonaDetails, setCustomPersonaDetails] = useState<Omit<Persona, 'id' | 'isCustom'>>({
-    name: '',
+    name: '', // Kept name here for the frontend input binding
     identity: '',
     voiceTone: '',
     coreRule: '',
@@ -32,7 +46,8 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [outputText, setOutputText] = useState<string>('');
-  const [analysisResult, setAnalysisResult] = useState<any>(null); // Keep as any if the analysis API's exact type is unknown
+  // Corrected type for analysisResult to be AnalysisResult | null
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); 
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
 
@@ -52,7 +67,7 @@ export default function HomePage() {
           const defaultPersona = sortedPersonas.find(p => p.id === 'david') || sortedPersonas[0];
           setSelectedPersonaId(defaultPersona.id);
         }
-      } catch (err: unknown) { // Use 'unknown' here
+      } catch (err: unknown) {
         console.error("Failed to load personas:", err);
         setError(err instanceof Error ? err.message : "Failed to load personas for selection.");
       }
@@ -60,11 +75,7 @@ export default function HomePage() {
     fetchPersonasData();
   }, []); 
 
-  // Remove the `useMemo` for `selectedPersona` if it's not being actively used in the JSX
-  // as it was generating a warning. If you intend to use `selectedPersona.description` or other
-  // properties directly in the UI later, you can put it back and use it.
-  // const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
-
+  // Removed unused useMemo for selectedPersona
 
   const normalizeOutputText = (text: string): string => {
     if (!text) return '';
@@ -82,7 +93,12 @@ export default function HomePage() {
 
   const handleCustomPersonaChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
-    setCustomPersonaDetails(prev => ({ ...prev, [name]: value }));
+    // For 'name' in customPersonaDetails, ensure it's handled properly within the type
+    if (name === 'name') {
+      setCustomPersonaDetails(prev => ({ ...prev, name: value }));
+    } else {
+      setCustomPersonaDetails(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleHumanize = async () => {
@@ -96,16 +112,15 @@ export default function HomePage() {
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
 
     if (selectedPersonaId === 'custom') {
-      if (!customPersonaDetails.name.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()) {
+      if (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()) { 
         setError("Please provide a name, identity, and voice/tone for your custom persona.");
         setIsLoading(false);
         return;
       }
-      const { name, ...detailsWithoutName } = customPersonaDetails;
       payload = {
         inputText,
         personaId: 'custom', 
-        customPersonaDetails: detailsWithoutName, 
+        customPersonaDetails: customPersonaDetails, // customPersonaDetails already has 'name' and is correctly typed to match Omit<Persona, 'id' | 'isCustom'>
       };
     } else {
       payload = {
@@ -130,7 +145,7 @@ export default function HomePage() {
 
       const data = await response.json();
       setOutputText(normalizeOutputText(data.humanizedText));
-    } catch (err: unknown) { // Use 'unknown' here
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsLoading(false);
@@ -147,8 +162,8 @@ export default function HomePage() {
       const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inputText }) });
       if (!response.ok) throw new Error((await response.json()).error || 'An error occurred.');
       const data = await response.json();
-      setAnalysisResult(data.analysisData);
-    } catch (err: unknown) { // Use 'unknown' here
+      setAnalysisResult(data.analysisData as AnalysisResult); // Explicitly cast the incoming data
+    } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsAnalyzing(false);
@@ -209,7 +224,7 @@ export default function HomePage() {
                   id="custom-name"
                   type="text"
                   name="name"
-                  value={customPersonaDetails.name}
+                  value={customPersonaDetails.name || ''} 
                   onChange={handleCustomPersonaChange}
                   placeholder="e.g., My Professional Voice"
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -287,7 +302,7 @@ export default function HomePage() {
             </button>
             <button
               onClick={handleHumanize}
-              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()))}
+              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()))}
               className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
             >
               {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
@@ -309,7 +324,6 @@ export default function HomePage() {
                 </div>
               )}
             </div>
-            {/* The output display area - now conditionally renders a textarea or the analysis result */}
             {isLoading || isAnalyzing ? (
               <div className="flex justify-center items-center h-full text-gray-500 dark:text-gray-400">
                 <LoaderCircle className="animate-spin" /> Working...
@@ -318,8 +332,7 @@ export default function HomePage() {
               <div className="flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none overflow-y-auto">
                 {error && <p className="text-red-500 whitespace-pre-wrap">{error}</p>}
                 
-                {/* Conditionally render textarea for outputText */}
-                {outputText && !analysisResult ? ( // Only render textarea if outputText exists AND no analysis result
+                {outputText && !analysisResult ? (
                     <textarea
                         value={normalizeOutputText(outputText)}
                         readOnly
@@ -327,9 +340,8 @@ export default function HomePage() {
                         className="w-full h-full p-0 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none focus:outline-none resize-none"
                         style={{ lineHeight: '1.5em' }}
                     />
-                ) : null} {/* If outputText is empty or analysisResult exists, render nothing here */}
+                ) : null}
                 
-                {/* Conditionally render analysis result */}
                 {analysisResult && (
                   <div className="space-y-2">
                     <p><strong className="font-semibold">Style Name:</strong> {analysisResult.writing_style_name}</p>

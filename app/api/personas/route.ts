@@ -1,9 +1,9 @@
 // app/api/personas/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+// import { NextRequest, NextResponse } from 'next/server'; // Remove NextRequest import
+import { NextResponse } from 'next/server'; // Only import NextResponse
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-// Removed 'req: NextRequest' parameter as it's unused
 export async function GET() { 
   try {
     const personasPath = path.join(process.cwd(), 'app', 'data', 'personas.json');
