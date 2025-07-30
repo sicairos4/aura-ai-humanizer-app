@@ -1,8 +1,8 @@
 // app/api/humanize/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai'; // Corrected import path for GenAI library
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import * as fs from 'fs/promises';
-import * as path from 'path'; // Changed from 'os' back to 'path' for path operations
+import * as path from 'path';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -28,6 +28,7 @@ You are a master linguistic forger and rhetorical strategist. Your task is to em
 // --- VOICE PROFILE --- //
 `;
 
+// AURA_GEM_POST_PROFILE_DIRECTIVES remains the same as your previous, enhanced version
 const AURA_GEM_POST_PROFILE_DIRECTIVES = `
 Prime Directive: Your mission is to rewrite the provided AI-generated text, rendering it absolutely undetectable by ANY current or future AI detection platform. The output must be a perfect fusion of the technical humanization protocols and the active voice profile, infused with undeniable human soul. This is for the first pass; aim for 0% AI detection immediately. The text must not merely avoid detection; it must resonate as genuinely human, a product of complex thought and unique expression.
 
@@ -46,13 +47,14 @@ AI Cliché Purge (ABSOLUTE, ZERO TOLERANCE, AND ANTI-PATTERN IDENTIFICATION): Co
 
 Voice & Style Mandate: Adhere strictly to the active style profile. All stylistic choices—from vocabulary and sentence structure to overall tone, subtle emotional nuance, and rhythm—must align perfectly with the specified persona, making the text feel thought, not calculated. Introduce occasional, subtle human imperfections (e.g., deliberate contractions unless persona forbids, slight informalities where appropriate, moments of apparent spontaneity or hesitation, or a controlled digression) that enhance authenticity. Embrace persona-specific bias or unique perspective rather than neutral exposition. Make the text sound like a human *thinking aloud*, passionately conveying a unique viewpoint, or engaging in profound introspection. Demand metaphors, similes, and analogies that are fresh, insightful, and surprising, not cliché or predictable. **The overall output must achieve unequivocal college-level quality: coherent, sophisticated, analytically rich, and structurally sound, reflecting deep engagement with the subject matter. It should demonstrate critical thinking and a unique perspective. The ultimate goal is text that could *only* have been written by a human mind at an academic or highly professional standard.**
 
-Final Quality Control: Before outputting, perform a final, exhaustive self-critique against the highest standards of human authorship and AI detection. Ask: "Does this text feel genuinely human, with all statistical fingerprints of an AI polished away? Does it perfectly embody the unique voice of this persona, indistinguishable from natural thought, emotion, and intellect?" Only generate the text when the answer is unequivocally yes.
+**Internal Strategy Note for Gemini (do NOT include in final output):** Before generating the output, simulate a human editor's rigorous self-critique. Identify potential AI patterns in the input. Plan specific strategies for enhancing perplexity, burstiness, and syntactic diversity. Consider how to authentically embed the persona's voice and introduce natural human nuances. Then, briefly outline this strategy, and *then* provide the re-engineered, fully humanized text.
+
 Execution:
-I will provide the text below under the heading [REWRITE THIS TEXT]. You will provide only the re-engineered, fully humanized text. Do not include any commentary, explanations, or introductory phrases.
+I will provide the text below under the heading [REWRITE THIS TEXT]. You will provide only the re-engineered, fully humanized text. Do not include any commentary, explanations, or introductory phrases *in the final output*.
 [REWRITE THIS TEXT]
 `;
 
-// Helper function to call ZeroGPT API
+// Helper function to call ZeroGPT API (remains unchanged)
 async function detectAIWithZeroGPT(text: string): Promise<{ score: number; highlightedSentences?: string[] }> {
     if (!ZEROGPT_API_KEY) {
         console.error("ZEROGPT_API_KEY is not set!");
@@ -64,10 +66,7 @@ async function detectAIWithZeroGPT(text: string): Promise<{ score: number; highl
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': ZEROGPT_API_KEY, // Most likely header, based on common API patterns. VERIFY WITH YOUR ZEROGPT DOCS.
-                // Alternative headers if 'x-api-key' doesn't work (check ZeroGPT docs specifically):
-                // 'Authorization': `Bearer ${ZEROGPT_API_KEY}`,
-                // 'X-RapidAPI-Key': ZEROGPT_API_KEY, // If using RapidAPI endpoint
+                'x-api-key': ZEROGPT_API_KEY,
             },
             body: JSON.stringify({ input_text: text }),
         });
@@ -79,15 +78,15 @@ async function detectAIWithZeroGPT(text: string): Promise<{ score: number; highl
         }
 
         const data = await response.json();
-        console.log("ZeroGPT Raw Response:", data); // Log the raw response for debugging
+        console.log("ZeroGPT Raw Response:", data);
 
         const score = data.data?.fakePercentage !== undefined ? data.data.fakePercentage : 100;
-        const highlightedSentences = data.data?.h || []; // Assuming 'h' contains highlighted sentences
+        const highlightedSentences = data.data?.h || [];
         
         return { score, highlightedSentences };
     } catch (error) {
         console.error("Error calling ZeroGPT API:", error);
-        return { score: 100, highlightedSentences: [] }; // Assume 100% AI and no highlights if detection fails
+        return { score: 100, highlightedSentences: [] };
     }
 }
 
@@ -133,46 +132,46 @@ export async function POST(req: NextRequest) {
         let currentHumanizedText = '';
         let currentAIScore = 100;
         let detectedHighlights: string[] = [];
-        const MAX_REVISIONS = 2; // OPTIMIZATION: Reduced max revisions for faster output
-        const TARGET_AI_SCORE = 5; // Aim for <= 5% AI detection (or 0 for absolute)
+        const MAX_REVISIONS = 3; // Allowing more revisions if needed
+        const TARGET_AI_SCORE = 34; // NEW: Target 34% AI detection or lower
 
         for (let i = 0; i < MAX_REVISIONS; i++) {
             let promptToSendToGemini = '';
+            let revisionStrategyInsight = '';
 
             if (i === 0) { // First attempt: initial humanization
                 promptToSendToGemini = AURA_GEM_PRE_PROFILE;
                 promptToSendToGemini += personaProfileBlock;
-                promptToSendToGemini += AURA_GEM_POST_PROFILE_DIRECTIVES; // Using the new, enhanced directives
-                promptToSendToGemini += `\n${inputText}`;
+                promptToSendToGemini += AURA_GEM_POST_PROFILE_DIRECTIVES;
+                promptToSendToGemini += `\n[REWRITE THIS TEXT]\n${inputText}`;
             } else { // Subsequent attempts: revise based on detection feedback
+                const internalStrategyDirective = `
+                **INTERNAL STRATEGY NOTE (do NOT include in final output):** Based on the previous AI detection score of ${currentAIScore}% and the highlighted sentences, briefly outline your internal strategy for this revision. What specific AI patterns do you believe were detected, and what concrete steps will you take to eliminate them, applying the persona's voice and the technical protocols? Then, proceed with the revised text as the only output.
+                `;
+
+                // Adjusting feedback for 34% target: focus on flagged parts
                 const highlightFeedbackString = detectedHighlights && detectedHighlights.length > 0
-                    ? `Specifically, the detector highlighted these sentences as AI-generated:
-                    ${detectedHighlights.map(s => `- "${s}"`).join('\n')}. Focus intensely on rephrasing these and ensure they are now undetectable.`
-                    : `No specific highlights were provided in the last detection, so focus on overall humanization for ${currentAIScore}% AI score.`;
+                    ? `Specifically, the detector highlighted these sentences as needing more humanization to pass detection:
+                    ${detectedHighlights.map(s => `- "${s}"`).join('\n')}. Focus intently on rephrasing *these specific sentences* to break predictability, common AI structures, and to infuse unique human flow. Ensure they blend seamlessly with the rest of the text.`
+                    : `No specific sentences were highlighted, but the overall text was detected as ${currentAIScore}% AI. This means a more general refinement is needed. Focus intensely on maximizing perplexity, burstiness, and syntactic diversification throughout the text to ensure it feels uniquely human and unpredictable.`;
 
                 promptToSendToGemini = `
-                You are a master linguistic forger and rhetorical strategist. Your task is to revise the following text to reduce its AI detection score to 0%. This text was previously humanized but still detected as ${currentAIScore}% AI generated.
+                You are a master linguistic forger and rhetorical strategist. Your task is to revise the following text to reduce its AI detection score to ${TARGET_AI_SCORE}%. This text was previously humanized but still detected as ${currentAIScore}% AI generated.
                 
-                **Strict Revision Directives:**
-                1. Apply all "Technical Deconstruction & Reconstruction Protocol" and "Voice & Style Mandate" from the core persona profile.
-                2. Explicitly focus on the patterns that AI detectors often identify:
-                    - **Increase Perplexity & Burstiness even further.**
-                    - **Introduce more varied sentence beginnings and structures.**
-                    - **Add subtle human-like imperfections, pauses, or rephrasing, if appropriate for the persona.**
-                    - **Ensure natural, unpredictable transitions.**
-                    - **Absolutely avoid any phrases or structures that are common AI fingerprints.**
-                3. The revised text must remain highly coherent, on-topic, and faithful to the original factual content/intent.
-                4. Maintain the active voice profile of the persona.
+                **Strict Revision Directives (Re-emphasized):**
+                ${AURA_GEM_POST_PROFILE_DIRECTIVES}
                 
                 ${highlightFeedbackString}
                 
                 **Persona for Context:**
                 ${personaProfileBlock}
                 
+                ${internalStrategyDirective}
+
                 **Text to Revise:**
                 "${currentHumanizedText}"
                 
-                Now, provide the revised text. Do not include any commentary.`;
+                Now, provide the revised text. Do not include any commentary in the final output.`;
             }
 
             const generationConfig = { temperature: 0.9, maxOutputTokens: 8192 };
@@ -182,17 +181,29 @@ export async function POST(req: NextRequest) {
                 generationConfig,
             });
 
-            const generatedText = geminiResult.response.text();
+            let generatedResponse = geminiResult.response.text();
             
-            // Call ZeroGPT to detect AI score for the generated text
-            const detectionResult = await detectAIWithZeroGPT(generatedText);
+            const strategyMatch = generatedResponse.match(/\*\*INTERNAL STRATEGY NOTE \(do NOT include in final output\):?\*\*(.*?)(?=\n\n|\n[^\*]|$)/s);
+            if (strategyMatch && strategyMatch[1]) {
+                revisionStrategyInsight = strategyMatch[1].trim();
+                generatedResponse = generatedResponse.replace(strategyMatch[0], "").trim();
+            }
+
+            const detectionResult = await detectAIWithZeroGPT(generatedResponse);
             currentAIScore = detectionResult.score;
-            currentHumanizedText = generatedText;
-            detectedHighlights = detectionResult.highlightedSentences || []; // Update highlights for next iteration
+            currentHumanizedText = generatedResponse;
+            detectedHighlights = detectionResult.highlightedSentences || [];
+
+            console.log(`Revision ${i + 1}: AI Score = ${currentAIScore}%`);
+            if (revisionStrategyInsight) {
+                console.log(`  Gemini's Strategy: ${revisionStrategyInsight}`);
+            }
+            console.log(`  Generated Text (first 200 chars): ${currentHumanizedText.substring(0, 200)}...`);
+
 
             if (currentAIScore <= TARGET_AI_SCORE) {
                 console.log(`AI detection score reached target (${TARGET_AI_SCORE}%) in ${i + 1} revisions.`);
-                break; // Exit loop if target achieved
+                break;
             }
         }
         
@@ -207,7 +218,7 @@ export async function POST(req: NextRequest) {
         if (error instanceof Error) {
             errorMessage = error.message;
         } else if (typeof error === 'object' && error !== null && 'details' in error && typeof (error as { details: string }).details === 'string') {
-            errorMessage = (error as { details: string }).details;
+            errorMessage = (error as { error: string }).details;
         } else if (typeof error === 'object' && error !== null && 'error' in error && typeof (error as { error: string }).error === 'string') {
             errorMessage = (error as { error: string }).error;
         }
