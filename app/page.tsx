@@ -52,6 +52,8 @@ export default function HomePage() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); 
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
+  // FIX: Declare displayedAIScore state variable
+  const [displayedAIScore, setDisplayedAIScore] = useState<number | null>(null);
 
   // New state for dynamic loading message
   const [loadingMessage, setLoadingMessage] = useState<string>('Initializing...');
@@ -263,10 +265,15 @@ export default function HomePage() {
     <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-gray-100">
       <Header />
 
+      {/* Main content wrapper with controlled width and padding */}
+      {/* This is the top-level div for the content, it should encompass everything else */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6 pb-8 sm:pb-12">
         
-        {/* Input Text Area Container */}
-        <div className="w-full max-w-screen-xl mx-auto"> 
+        {/* Main grid layout for input/buttons/output */}
+        {/* Apply max-w-screen-xl directly to this grid container */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-4 lg:gap-6 items-start px-2 sm:px-0 w-full max-w-screen-xl mx-auto">
+          
+          {/* Input Text Area Container */}
           <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm flex flex-col h-full min-h-[40vh]">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
                 <label htmlFor="input-text" className="text-sm font-semibold text-gray-500 dark:text-gray-400">Input Text</label>
@@ -280,33 +287,31 @@ export default function HomePage() {
               rows={15} 
               className="w-full flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none"
             />
+          </div> 
+
+          {/* Action Buttons Section */}
+          <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 justify-center items-center w-full lg:h-full lg:py-12">
+            <button
+              onClick={handleAnalyze}
+              disabled={isAnalyzing || isLoading || !inputText.trim()}
+              className="flex items-center justify-center gap-2 w-full lg:w-auto px-4 py-2 text-sm font-medium rounded-md border focus:outline-none transition-all disabled:opacity-50
+                border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700
+                focus:ring-2 focus:ring-purple-500"
+            >
+              {isAnalyzing ? <LoaderCircle size={16} className="animate-spin" /> : <Info size={16}/>}
+              <span>{isAnalyzing ? loadingMessage : 'Analyze'}</span>
+            </button>
+            <button
+              onClick={handleHumanize}
+              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()))}
+              className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
+            >
+              {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
+              <span>{isLoading ? loadingMessage : 'Apply Aura'}</span>
+            </button>
           </div>
-        </div> 
 
-        {/* Action Buttons Section */}
-        <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 justify-center items-center w-full lg:h-full lg:py-12">
-          <button
-            onClick={handleAnalyze}
-            disabled={isAnalyzing || isLoading || !inputText.trim()}
-            className="flex items-center justify-center gap-2 w-full lg:w-auto px-4 py-2 text-sm font-medium rounded-md border focus:outline-none transition-all disabled:opacity-50
-              border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700
-              focus:ring-2 focus:ring-purple-500"
-          >
-            {isAnalyzing ? <LoaderCircle size={16} className="animate-spin" /> : <Info size={16}/>}
-            <span>{isAnalyzing ? loadingMessage : 'Analyze'}</span>
-          </button>
-          <button
-            onClick={handleHumanize}
-            disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()))}
-            className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
-          >
-            {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
-            <span>{isLoading ? loadingMessage : 'Apply Aura'}</span>
-          </button>
-        </div>
-
-        {/* Output Text Area Container */}
-        <div className="w-full max-w-screen-xl mx-auto"> 
+          {/* Output Text Area Container */}
           <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm min-h-[40vh] flex flex-col">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
               <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">{analysisResult ? "Analysis Report" : "Humanized Output"}</label>
@@ -393,6 +398,7 @@ export default function HomePage() {
         </div>
 
         {/* Persona Selector & Custom Persona Inputs - MOVED TO BOTTOM AND STYLED */}
+        {/* This div is a direct child of the main content wrapper */}
         <div className="w-full max-w-lg mx-auto space-y-3 px-2 sm:px-0 mt-8 sm:mt-12"> 
           <div className="relative text-center p-4 rounded-lg shadow-lg border-2 border-purple-500 bg-white dark:bg-black">
             <label htmlFor="persona-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
@@ -482,4 +488,7 @@ export default function HomePage() {
           )}
         </div> {/* End of Persona Selector & Custom Persona Inputs block */}
 
-      </div>
+      </div> {/* Final closing div for mx-auto max-w-7xl */}
+    </main>
+  );
+}
