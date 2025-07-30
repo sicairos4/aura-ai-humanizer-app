@@ -52,8 +52,6 @@ export default function HomePage() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); 
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
-  // NEW: State to store the final AI score from backend
-  const [displayedAIScore, setDisplayedAIScore] = useState<number | null>(null);
 
   // New state for dynamic loading message
   const [loadingMessage, setLoadingMessage] = useState<string>('Initializing...');
@@ -88,25 +86,30 @@ export default function HomePage() {
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
     const baseMessages = [
-      "Initializing...",
-      "Applying Aura (1st pass)...",
-      "Checking AI Detection...",
-      "Revising for Human Touch...",
-      "Finalizing Output...",
-      "Analyzing input text..." // For analyze button
+      "Initializing AI Engine...",
+      "Crafting 1st draft of Aura (Gemini)...",
+      "Checking for AI fingerprints (ZeroGPT pass 1)...",
+      "Refining human touch (revision 1)...",
+      "Re-checking for AI patterns (ZeroGPT pass 2)...",
+      "Further refining for undetectable output (revision 2)...",
+      "Almost done... Compiling output..."
     ];
+    const analyzeMessage = "Analyzing input text";
+
+    let dots = 0;
+    let messageIndex = 0;
 
     if (isLoading || isAnalyzing) {
-      // For apply Aura, messages 0-4 depending on step
-      // For analyze, message 5
-      const currentDisplayedMessage = isAnalyzing ? baseMessages[5] : baseMessages[currentStep];
-
-      let dots = 0;
-      setLoadingMessage(`${currentDisplayedMessage}`); 
+      setLoadingMessage(isAnalyzing ? `${analyzeMessage}` : baseMessages[messageIndex]); 
       intervalId = setInterval(() => {
         dots = (dots % 3) + 1; // Cycle 1, 2, 3 dots
-        setLoadingMessage(`${currentDisplayedMessage}${".".repeat(dots)}`);
-      }, 500); // Update dots every 500ms
+        if (isAnalyzing) {
+          setLoadingMessage(`${analyzeMessage}${".".repeat(dots)}`);
+        } else {
+          messageIndex = (messageIndex + 1) % baseMessages.length; // Cycle through all messages
+          setLoadingMessage(`${baseMessages[messageIndex]}${".".repeat(dots)}`);
+        }
+      }, 750); // Slower cycle for more readability and less frantic feel
     } else {
       setLoadingMessage('Working...'); // Reset message when not loading
     }
@@ -117,6 +120,7 @@ export default function HomePage() {
       }
     };
   }, [isLoading, isAnalyzing, currentStep]); // Rerun effect when loading/analyzing state or step changes
+
 
   // Re-added useMemo for selectedPersona to display its details
   const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
@@ -165,7 +169,7 @@ export default function HomePage() {
     setAnalysisResult(null); 
     setOutputText(''); 
     setError(null); 
-    setDisplayedAIScore(null); // NEW: Clear previous AI score
+    setDisplayedAIScore(null); 
     setCurrentStep(0); // Reset step for humanize (will become 1 in useEffect if loading is true)
 
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
@@ -204,13 +208,13 @@ export default function HomePage() {
 
       const data = await response.json();
       setOutputText(normalizeOutputText(data.humanizedText));
-      setDisplayedAIScore(data.finalAIScore); // NEW: Set the AI score received from backend
+      setDisplayedAIScore(data.finalAIScore); 
       
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsLoading(false);
-      setCurrentStep(0); // Reset step on completion/error
+      // currentStep is implicitly reset as isLoading becomes false
     }
   };
 
@@ -220,7 +224,7 @@ export default function HomePage() {
     setOutputText(''); 
     setAnalysisResult(null);
     setError(null);
-    setDisplayedAIScore(null); // NEW: Clear AI score for analysis mode
+    setDisplayedAIScore(null); 
     setCurrentStep(5); // Set specific step for analyze loading message
 
     try {
@@ -235,7 +239,7 @@ export default function HomePage() {
       setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
     } finally {
       setIsAnalyzing(false);
-      setCurrentStep(0); // Reset step on completion/error
+      // currentStep is implicitly reset as isAnalyzing becomes false
     }
   };
   
@@ -349,7 +353,6 @@ export default function HomePage() {
                     />
                 ) : null}
 
-                {/* NEW: Display the AI Score here */}
                 {displayedAIScore !== null && outputText && !analysisResult && (
                     <div className="mt-4 p-3 bg-purple-100 dark:bg-purple-900 border border-purple-300 dark:border-purple-700 rounded-lg text-sm text-purple-800 dark:text-purple-200">
                         <strong className="font-semibold">AI Detection Score: </strong> 
@@ -472,6 +475,7 @@ export default function HomePage() {
                   placeholder="Specific instructions for the persona. e.g., Always use analogies. Do not use contractions."
                   rows={2}
                   className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
+                  required
                 ></textarea>
               </div>
             </div>
@@ -479,6 +483,3 @@ export default function HomePage() {
         </div> {/* End of Persona Selector & Custom Persona Inputs block */}
 
       </div>
-    </main>
-  );
-}
