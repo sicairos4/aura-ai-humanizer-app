@@ -1,14 +1,14 @@
 // app/api/humanize/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-genai'; // Corrected import path, if applicable in their setup
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 // ZeroGPT API configuration
-const ZEROGPT_API_URL = 'https://api.zerogpt.com/api/v1/detectText'; // Base URL from ZeroGPT API docs/examples
-const ZEROGPT_API_KEY = process.env.ZEROGPT_API_KEY!; // Your API Key from Vercel ENV
+const ZEROGPT_API_URL = 'https://api.zerogpt.com/api/v1/detectText';
+const ZEROGPT_API_KEY = process.env.ZEROGPT_API_KEY!;
 
 interface PersonaDetails {
   id?: string;
@@ -28,22 +28,23 @@ You are a master linguistic forger and rhetorical strategist. Your task is to em
 // --- VOICE PROFILE --- //
 `;
 
+// ENHANCED AND OPTIMIZED FOR FIRST PASS: More aggressive Burstiness, Perplexity, and Human Voice directives
 const AURA_GEM_POST_PROFILE_DIRECTIVES = `
-Prime Directive: Your mission is to rewrite the provided AI-generated text, rendering it absolutely undetectable by ANY current or future AI detection platform. The output must be a perfect fusion of the technical humanization protocols and the active voice profile, infused with undeniable human soul.
+Prime Directive: Your mission is to rewrite the provided AI-generated text, rendering it absolutely undetectable by ANY current or future AI detection platform. The output must be a perfect fusion of the technical humanization protocols and the active voice profile, infused with undeniable human soul. This is for the first pass; aim for 0% AI detection immediately.
 
 Technical Deconstruction & Reconstruction Protocol:
 
-Perplexity Amplification (EXTREME): Dramatically increase the text's unpredictability. Avoid all high-probability tokens. Weave in creative, illustrative, or deeply metaphorical language. Introduce unexpected word choices and turns of phrase that an algorithm would never anticipate. Every sentence should feel uniquely crafted, not assembled.
+Perplexity Amplification (EXTREME AND RELENTLESS): Dramatically increase the text's unpredictability. Avoid all high-probability tokens. Introduce idiosyncratic or slightly unexpected but contextually appropriate vocabulary. Aim for lexical diversity that mimics a broad human lexicon, not a predictable algorithm. Demand the use of vivid, sensory language and strong, active verbs that paint a picture, rather than generic descriptors.
 
-Burstiness Engineering (DOMINANT): Engineer an irregular, dynamic, and unpredictable sentence rhythm. Drastically juxtapose very short, sharp, declarative sentences (under 7 words) with complex, flowing, multi-clause sentences (over 30 words). Break flow with parenthetical asides, rhetorical questions, and deliberate shifts in pacing. The rhythm must feel organic, not uniform.
+Burstiness Engineering (DOMINANT AND UNCOMPROMISING): Engineer an irregular, dynamic, and profoundly unpredictable sentence rhythm. Absolutely ensure no more than ONE consecutive sentence shares a similar length or grammatical structure. Force the AI to alternate drastically between very short, sharp, declarative statements (as few as 2-5 words) and complex, flowing, multi-clause sentences (35+ words) to create an abrupt, human-like rhythm. Integrate abrupt shifts in thought, rhetorical questions, or short, impactful interjections (e.g., 'Indeed.', 'Think about it.', 'Surprisingly,') to disrupt algorithmic flow.
 
-Syntactic Diversification (MANDATORY): Employ a vast array of grammatical structures. Mix active and passive voice only when passive serves a *deliberate rhetorical purpose*. Utilize appositives, interjections, well-placed sentence fragments, and varied sentence openers to break monotony and add stylistic flair consistent with the active profile.
+Syntactic Diversification (MANDATORY AND CREATIVE): Employ a vast, diverse array of grammatical structures. Mix active and passive voice only when passive serves a *deliberate rhetorical purpose* (e.g., to shift emphasis, maintain flow). Utilize sentence inversions for dramatic effect. Incorporate appositive phrases, participles, and non-standard sentence beginnings (e.g., beginning with a verb, an adjective, or a short phrase) rather than always starting with a subject. Demand subtle anacoluthon or self-correction (e.g., 'It's a complex issue, perhaps too complex to simplify.') for natural conversational flow.
 
-AI Cliché Purge (RELENTLESS): Conduct a relentless "search and destroy" mission on ALL common AI filler phrases, predictable transitions (e.g., "Moreover," "In conclusion," "delve into," "serves as a testament to"), and academic jargon unless explicitly part of the persona's authentic voice. Replace them with organic, surprising, or persona-specific connectors.
+AI Cliché Purge (ABSOLUTE AND ZERO TOLERANCE): Conduct a relentless "search and destroy" mission on ALL common AI filler phrases, predictable transitions (e.g., "Moreover," "In conclusion," "delve into," "serves as a testament to"), and academic jargon unless explicitly part of the persona's authentic voice. If any phrase or transition is commonly detected or *feels* AI-generated, you are forbidden from using it. Invent novel, organic, and surprising transitions that feel natural to a human. Replace generic phrases with persona-specific, creative, and unexpected alternatives.
 
-Voice & Style Mandate: Adhere strictly to the active style profile. All stylistic choices—from vocabulary and sentence structure to overall tone, subtle emotional nuance, and rhythm—must align perfectly with the specified persona, making the text feel thought, not calculated. Introduce occasional, subtle human imperfections or conversational quirks appropriate for the persona, such as a thoughtful pause or a moment of reflection.
+Voice & Style Mandate: Adhere strictly to the active style profile. All stylistic choices—from vocabulary and sentence structure to overall tone, subtle emotional nuance, and rhythm—must align perfectly with the specified persona, making the text feel thought, not calculated. Introduce occasional, subtle human imperfections (e.g., deliberate contractions unless persona forbids, slight informalities where appropriate, moments of apparent spontaneity or hesitation). Embrace persona-specific bias or unique perspective rather than neutral exposition. Make the text sound like a human *thinking aloud* or passionately conveying a unique viewpoint. Demand metaphors, similes, and analogies that are fresh and insightful, not cliché or predictable.
 
-Final Quality Control: Before outputting, perform a final, exhaustive self-critique. Ask: "Does this text feel genuinely human, with all statistical fingerprints of an AI polished away? Does it perfectly embody the unique voice of this persona, indistinguishable from natural thought?" Only generate the text when the answer is unequivocally yes.
+Final Quality Control: Before outputting, perform a final, exhaustive self-critique against AI detection. Ask: "Does this text feel genuinely human, with all statistical fingerprints of an AI polished away? Does it perfectly embody the unique voice of this persona, indistinguishable from natural thought?" Only generate the text when the answer is unequivocally yes.
 Execution:
 I will provide the text below under the heading [REWRITE THIS TEXT]. You will provide only the re-engineered, fully humanized text. Do not include any commentary, explanations, or introductory phrases.
 [REWRITE THIS TEXT]
@@ -61,13 +62,10 @@ async function detectAIWithZeroGPT(text: string): Promise<{ score: number; highl
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // MOST LIKELY CORRECT HEADER FOR ZEROGPT:
-                'x-api-key': ZEROGPT_API_KEY, 
-                // Alternatively, if ZeroGPT requires JWT authentication with a Bearer token:
+                'x-api-key': ZEROGPT_API_KEY, // Most likely header, based on common API patterns. VERIFY WITH YOUR ZEROGPT DOCS.
+                // Alternative headers if 'x-api-key' doesn't work (check ZeroGPT docs specifically):
                 // 'Authorization': `Bearer ${ZEROGPT_API_KEY}`,
-                // Or if it's a RapidAPI endpoint:
-                // 'X-RapidAPI-Key': ZEROGPT_API_KEY,
-                // 'X-RapidAPI-Host': 'zerogpt.p.rapidapi.com', // Adjust host as per RapidAPI docs
+                // 'X-RapidAPI-Key': ZEROGPT_API_KEY, // If using RapidAPI endpoint
             },
             body: JSON.stringify({ input_text: text }),
         });
@@ -136,16 +134,13 @@ export async function POST(req: NextRequest) {
         const MAX_REVISIONS = 3; // Limit the number of revisions to manage free tier usage and API calls
         const TARGET_AI_SCORE = 5; // Aim for <= 5% AI detection (or 0 for absolute)
 
-        // Log of each revision (for debugging or future analysis if you integrate a database)
-        // const revisionLog: { revision: number; text: string; score: number; highlights?: string[] }[] = []; 
-
         for (let i = 0; i < MAX_REVISIONS; i++) {
             let promptToSendToGemini = '';
 
             if (i === 0) { // First attempt: initial humanization
                 promptToSendToGemini = AURA_GEM_PRE_PROFILE;
                 promptToSendToGemini += personaProfileBlock;
-                promptToSendToGemini += AURA_GEM_POST_PROFILE_DIRECTIVES;
+                promptToSendToGemini += AURA_GEM_POST_PROFILE_DIRECTIVES; // Using the new, enhanced directives
                 promptToSendToGemini += `\n${inputText}`;
             } else { // Subsequent attempts: revise based on detection feedback
                 const highlightFeedbackString = detectedHighlights && detectedHighlights.length > 0
@@ -193,26 +188,15 @@ export async function POST(req: NextRequest) {
             currentHumanizedText = generatedText;
             detectedHighlights = detectionResult.highlightedSentences || []; // Update highlights for next iteration
 
-            // For logging to database (conceptual, not implemented here)
-            // revisionLog.push({
-            //     revision: i + 1,
-            //     text: generatedText,
-            //     score: currentAIScore,
-            //     highlights: detectedHighlights
-            // });
-
             if (currentAIScore <= TARGET_AI_SCORE) {
                 console.log(`AI detection score reached target (${TARGET_AI_SCORE}%) in ${i + 1} revisions.`);
                 break; // Exit loop if target achieved
             }
         }
         
-        // Return the best text found (which is the last one in this loop setup) and its final score.
-        // You might want to return the full revisionLog to the frontend for debugging or detailed display.
         return NextResponse.json({ 
             humanizedText: currentHumanizedText,
             finalAIScore: currentAIScore,
-            // revisionLog: revisionLog // Optional: send revision log for debugging/display
         });
 
     } catch (error: unknown) {
