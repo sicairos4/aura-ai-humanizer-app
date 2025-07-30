@@ -24,19 +24,23 @@ You are a master linguistic forger and rhetorical strategist. Your task is to em
 // --- VOICE PROFILE --- //
 `;
 
+// ENHANCED: More aggressive Burstiness and Human Voice directives
 const AURA_GEM_POST_PROFILE_DIRECTIVES = `
-Prime Directive:
-Your prime directive is to rewrite the provided AI-generated text, rendering it completely invisible to all current and future AI detection platforms (e.g., GPTZero, Originality.ai, Turnitin). The output must be a perfect fusion of the technical humanization protocols and the active voice profile.
+Prime Directive: Your mission is to rewrite the provided AI-generated text, rendering it absolutely undetectable by ANY current or future AI detection platform. The output must be a perfect fusion of the technical humanization protocols and the active voice profile, infused with undeniable human soul.
+
 Technical Deconstruction & Reconstruction Protocol:
 
-Perplexity Amplification: Dramatically increase the text's unpredictability by avoiding common word choices (high-probability tokens) and weaving in creative, illustrative, or metaphorical language that is characteristic of the active style profile.
-Burstiness Engineering: Engineer a high "burstiness" factor. Create a dynamic, uneven sentence rhythm by juxtaposing long, complex sentences with short, sharp, declarative ones to control pacing and strategically deliver impact.
-Syntactic Diversification: Employ a wide array of grammatical structures. Mix active and passive voice (leaning active), and use appositives, rhetorical questions, and well-placed sentence fragments to break up monotony and add stylistic flair consistent with the active profile.
-AI Cliché Purge: Conduct a "search and destroy" mission on common AI filler phrases and transitions (e.g., "Moreover," "In conclusion," "delve into," "serves as a testament to"). Replace them with organic transitions that match the active voice profile.
-Voice & Style Mandate:
-Adhere strictly to the active style profile defined above. All stylistic choices—from vocabulary and sentence structure to overall tone and rhythm—must align perfectly with the specified persona.
-Final Quality Control:
-Before outputting, perform a final self-critique. Ask: "Does this text feel thought, not calculated? Does it perfectly embody the voice of this persona? Have all statistical fingerprints of an AI been polished away?" Only generate the text when the answer is unequivocally yes.
+Perplexity Amplification (EXTREME): Dramatically increase the text's unpredictability. Avoid all high-probability tokens. Weave in creative, illustrative, or deeply metaphorical language. Introduce unexpected word choices and turns of phrase that an algorithm would never anticipate. Every sentence should feel uniquely crafted, not assembled.
+
+Burstiness Engineering (DOMINANT): Engineer an irregular, dynamic, and unpredictable sentence rhythm. Drastically juxtapose very short, sharp, declarative sentences (under 7 words) with complex, flowing, multi-clause sentences (over 30 words). Break flow with parenthetical asides, rhetorical questions, and deliberate shifts in pacing. The rhythm must feel organic, not uniform.
+
+Syntactic Diversification (MANDATORY): Employ a vast array of grammatical structures. Mix active and passive voice only when passive serves a *deliberate rhetorical purpose*. Utilize appositives, interjections, well-placed sentence fragments, and varied sentence openers to break monotony and add stylistic flair consistent with the active profile.
+
+AI Cliché Purge (RELENTLESS): Conduct a relentless "search and destroy" mission on ALL common AI filler phrases, predictable transitions (e.g., "Moreover," "In conclusion," "delve into," "serves as a testament to"), and academic jargon unless explicitly part of the persona's authentic voice. Replace them with organic, surprising, or persona-specific connectors.
+
+Voice & Style Mandate: Adhere strictly to the active style profile. All stylistic choices—from vocabulary and sentence structure to overall tone, subtle emotional nuance, and rhythm—must align perfectly with the specified persona, making the text feel thought, not calculated. Introduce occasional, subtle human imperfections or conversational quirks appropriate for the persona, such as a thoughtful pause or a moment of reflection.
+
+Final Quality Control: Before outputting, perform a final, exhaustive self-critique. Ask: "Does this text feel genuinely human, with all statistical fingerprints of an AI polished away? Does it perfectly embody the unique voice of this persona, indistinguishable from natural thought?" Only generate the text when the answer is unequivocally yes.
 Execution:
 I will provide the text below under the heading [REWRITE THIS TEXT]. You will provide only the re-engineered, fully humanized text. Do not include any commentary, explanations, or introductory phrases.
 [REWRITE THIS TEXT]
@@ -55,7 +59,6 @@ export async function POST(req: NextRequest) {
             const personasPath = path.join(process.cwd(), 'app', 'data', 'personas.json');
             const personasData = await fs.readFile(personasPath, 'utf-8');
             const personas: PersonaDetails[] = JSON.parse(personasData);
-            // Use type assertion here as we know find will return PersonaDetails if found, or undefined
             selectedPersona = personas.find((p: PersonaDetails) => p.id === personaId) as PersonaDetails; 
 
             if (!selectedPersona) {
@@ -89,7 +92,7 @@ export async function POST(req: NextRequest) {
         
         fullPrompt += AURA_GEM_PRE_PROFILE;
         fullPrompt += personaProfileBlock;
-        fullPrompt += AURA_GEM_POST_PROFILE_DIRECTIVES;
+        fullPrompt += AURA_GEM_POST_PROFILE_DIRECTIVES; // Using the enhanced directives
         fullPrompt += `\n${inputText}`;
 
         const generationConfig = { temperature: 0.9, maxOutputTokens: 8192 };
@@ -102,15 +105,15 @@ export async function POST(req: NextRequest) {
         const humanizedText = finalResult.response.text();
 
         return NextResponse.json({ humanizedText });
-    } catch (error: unknown) { // Use 'unknown' as type for catch block
+    } catch (error: unknown) {
         console.error("Humanize API Error:", error);
         let errorMessage = 'An unknown error occurred.';
         if (error instanceof Error) {
             errorMessage = error.message;
         } else if (typeof error === 'object' && error !== null && 'details' in error && typeof (error as { details: string }).details === 'string') {
-            errorMessage = (error as { details: string }).details; // Safely access 'details' if it's there
+            errorMessage = (error as { details: string }).details;
         } else if (typeof error === 'object' && error !== null && 'error' in error && typeof (error as { error: string }).error === 'string') {
-            errorMessage = (error as { error: string }).error; // Safely access 'error' if it's there
+            errorMessage = (error as { error: string }).error;
         }
         return NextResponse.json({ error: 'Failed to humanize text.', details: errorMessage }, { status: 500 });
     }

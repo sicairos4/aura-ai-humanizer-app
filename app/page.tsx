@@ -1,7 +1,7 @@
 // app/page.tsx
-'use client'; // This directive is crucial for client-side components in Next.js App Router
+'use client'; 
 
-import React, { useState, useEffect } from 'react'; 
+import React, { useState, useEffect, useMemo } from 'react'; 
 import { Sparkles, LoaderCircle, Copy, Check, Info, Share2, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header'; 
 
@@ -35,6 +35,7 @@ export default function HomePage() {
   const [inputText, setInputText] = useState<string>('');
   const [personas, setPersonas] = useState<Persona[]>([]); 
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('david'); 
+  const [wordCount, setWordCount] = useState<number>(0); 
   
   // Custom persona details state, including 'name' as it's an input field
   const [customPersonaDetails, setCustomPersonaDetails] = useState<Omit<Persona, 'id' | 'isCustom'>>({
@@ -77,7 +78,10 @@ export default function HomePage() {
     fetchPersonasData();
   }, []); 
 
-  // Helper to normalize newlines
+  // Re-added useMemo for selectedPersona to display its details
+  const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
+
+  // Helper to normalize newlines - now also used for output word count
   const normalizeOutputText = (text: string): string => {
     if (!text) return '';
     // Replace multiple newlines with exactly two for consistent paragraph breaks,
@@ -86,22 +90,26 @@ export default function HomePage() {
   };
 
   // --- Handlers ---
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const text = e.target.value;
+    setInputText(text);
+    setWordCount(text.trim().split(/\s+/).filter(word => word.length > 0).length);
+  };
+
   const handlePersonaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const id = event.target.value;
     setSelectedPersonaId(id);
     if (id === 'custom') {
-      // Reset custom details including the name for the custom input field
       setCustomPersonaDetails({ name: '', identity: '', voiceTone: '', coreRule: '', coreGoal: '' });
     }
   };
 
   const handleCustomPersonaChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
-    // Update customPersonaDetails using a type assertion to allow dynamic property access
     setCustomPersonaDetails(prev => ({
       ...prev,
       [name]: value
-    }) as Omit<Persona, 'id' | 'isCustom'>); // Assert the resulting type
+    }) as Omit<Persona, 'id' | 'isCustom'>);
   };
 
   const handleHumanize = async () => {
@@ -112,17 +120,14 @@ export default function HomePage() {
     setOutputText(''); 
     setError(null); 
 
-    // Define payload type more strictly: name is needed in customPersonaDetails for backend's PROFILE block construction
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
 
     if (selectedPersonaId === 'custom') {
-      // Validate custom persona fields before sending, using optional chaining for potentially undefined properties
       if (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()) { 
         setError("Please provide a name, identity, and voice/tone for your custom persona.");
         setIsLoading(false);
         return;
       }
-      // Send all relevant custom details, including 'name'
       payload = {
         inputText,
         personaId: 'custom', 
@@ -171,7 +176,7 @@ export default function HomePage() {
         throw new Error(errorData.error || 'An error occurred during analysis.');
       }
       const data = await response.json();
-      setAnalysisResult(data.analysisData as AnalysisResult); // Explicitly cast the incoming data to AnalysisResult
+      setAnalysisResult(data.analysisData as AnalysisResult); 
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
     } finally {
@@ -195,133 +200,73 @@ export default function HomePage() {
     }
   };
 
+  // Helper function to calculate words from any given text string.
+  // Used for both input and output word counts to ensure consistency.
+  const calculateWords = (text: string): number => {
+    if (!text) return 0;
+    const trimmedText = text.trim();
+    if (trimmedText === '') return 0; // Handle case of only whitespace
+    return trimmedText.split(/\s+/).filter(word => word.length > 0).length;
+  };
+
+
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
-      <div className="absolute inset-0 -z-10 h-full w-full bg-white dark:bg-black bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#1f1f1f_1px,transparent_1px),linear-gradient(to_bottom,#1f1f1f_1px,transparent_1px)] bg-[size:3rem_3rem]"></div>
-      
+    <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-gray-100">
       <Header />
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6 pb-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6 pb-8 sm:pb-12">
         
-        <div className="w-full max-w-lg mx-auto space-y-3">
-          <div className="relative text-center">
-            <label htmlFor="persona-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-              Persona
-            </label>
-            <select
-                id="persona-select"
-                value={selectedPersonaId}
-                onChange={handlePersonaChange}
-                className="w-full appearance-none rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 py-2.5 pl-4 pr-10 text-center text-sm font-medium text-gray-900 dark:text-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
-            >
-                {personas.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
-            <ChevronDown size={18} className="absolute right-3 top-1/2 mt-3 text-gray-500 pointer-events-none" />
-          </div>
-
-          {/* Custom Persona Input Fields */}
-          {selectedPersonaId === 'custom' && (
-            <div className="p-4 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 space-y-3">
-              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Define Your Custom Persona</h3>
-              <div>
-                <label htmlFor="custom-name" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Name</label>
-                <input
-                  id="custom-name"
-                  type="text"
-                  name="name"
-                  value={customPersonaDetails.name || ''} 
-                  onChange={handleCustomPersonaChange}
-                  placeholder="e.g., My Professional Voice"
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="custom-identity" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Identity</label>
-                <textarea
-                  id="custom-identity"
-                  name="identity"
-                  value={customPersonaDetails.identity || ''} // Added || '' for safety with textarea value
-                  onChange={handleCustomPersonaChange}
-                  placeholder="Who is this persona? e.g., A seasoned marketing executive."
-                  rows={2}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
-                  required
-                ></textarea>
-              </div>
-              <div>
-                <label htmlFor="custom-voice-tone" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Voice & Tone</label>
-                <textarea
-                  id="custom-voice-tone"
-                  name="voiceTone"
-                  value={customPersonaDetails.voiceTone || ''} // Added || '' for safety
-                  onChange={handleCustomPersonaChange}
-                  placeholder="Describe the style: e.g., Informal, witty, and engaging. Avoid corporate jargon."
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
-                  required
-                ></textarea>
-              </div>
-              <div>
-                <label htmlFor="custom-core-rule" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Core Rule/Goal (Optional)</label>
-                <textarea
-                  id="custom-core-rule"
-                  name="coreRule" 
-                  value={customPersonaDetails.coreRule || customPersonaDetails.coreGoal || ''}
-                  onChange={handleCustomPersonaChange}
-                  placeholder="Specific instructions for the persona. e.g., Always use analogies. Do not use contractions."
-                  rows={2}
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
-                ></textarea>
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_1fr] gap-6 items-start">
-          
-          <div className="bg-white/70 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm flex flex-col h-full backdrop-blur-sm min-h-[40vh]">
+        {/* Input Text Area Container */}
+        <div className="w-full max-w-screen-xl mx-auto"> 
+          <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm flex flex-col h-full min-h-[40vh]">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
                 <label htmlFor="input-text" className="text-sm font-semibold text-gray-500 dark:text-gray-400">Input Text</label>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{wordCount} words</span>
             </div>
             <textarea
               id="input-text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={handleInputChange} 
               placeholder="Paste your text here to be humanized or analyzed..."
               rows={15} 
               className="w-full flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none"
             />
           </div>
+        </div> 
 
-          <div className="flex flex-row lg:flex-col gap-4 justify-center items-center w-full lg:h-full lg:py-12">
-            <button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || isLoading || !inputText.trim()}
-              className="flex items-center justify-center gap-2 w-full lg:w-auto px-4 py-2 text-sm font-medium rounded-md border focus:outline-none transition-all disabled:opacity-50
-                border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700
-                focus:ring-2 focus:ring-purple-500"
-            >
-              {isAnalyzing ? <LoaderCircle size={16} className="animate-spin" /> : <Info size={16}/>}
-              <span>{isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
-            </button>
-            <button
-              onClick={handleHumanize}
-              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()))}
-              className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
-            >
-              {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
-              <span>{isLoading ? 'Applying Aura...' : 'Apply Aura'}</span>
-            </button>
-          </div>
+        {/* Action Buttons Section */}
+        <div className="flex flex-row lg:flex-col gap-3 lg:gap-4 justify-center items-center w-full lg:h-full lg:py-12">
+          <button
+            onClick={handleAnalyze}
+            disabled={isAnalyzing || isLoading || !inputText.trim()}
+            className="flex items-center justify-center gap-2 w-full lg:w-auto px-4 py-2 text-sm font-medium rounded-md border focus:outline-none transition-all disabled:opacity-50
+              border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700
+              focus:ring-2 focus:ring-purple-500"
+          >
+            {isAnalyzing ? <LoaderCircle size={16} className="animate-spin" /> : <Info size={16}/>}
+            <span>{isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
+          </button>
+          <button
+            onClick={handleHumanize}
+            disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()))}
+            className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
+          >
+            {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
+            <span>{isLoading ? 'Applying Aura...' : 'Apply Aura'}</span>
+          </button>
+        </div>
 
-          <div className="bg-white/70 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm min-h-[40vh] flex flex-col backdrop-blur-sm">
+        {/* Output Text Area Container */}
+        <div className="w-full max-w-screen-xl mx-auto"> {/* Ensured consistency with new wrapper */}
+          <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm min-h-[40vh] flex flex-col">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
               <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">{analysisResult ? "Analysis Report" : "Humanized Output"}</label>
+              {/* Output Word Count Display - using the new calculateWords helper */}
+              {outputText && !analysisResult ? ( // Only show if outputText exists and no analysisResult
+                <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto mr-2">
+                  {calculateWords(outputText)} words
+                </span>
+              ) : null}
               {outputText && !isLoading && !analysisResult && (
                 <div className="flex gap-2">
                   <button onClick={handleCopy} className="p-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors rounded">
@@ -356,7 +301,6 @@ export default function HomePage() {
                     <p><strong className="font-semibold">Style Name:</strong> {analysisResult.writing_style_name}</p>
                     <p><strong className="font-semibold">Primary Tone:</strong> {analysisResult.primary_tone} ({analysisResult.language})</p>
                     <div className="space-y-1">
-                      {/* FIX: Corrected missing <p> tag here */}
                       <p><strong className="font-semibold">Clarity:</strong> {analysisResult.scores.clarity}/100</p>
                       <p><strong className="font-semibold">Confidence:</strong> {analysisResult.scores.confidence}/100</p>
                       <p><strong className="font-semibold">Formality:</strong> {analysisResult.scores.formality}/100</p> 
@@ -376,6 +320,96 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Persona Selector & Custom Persona Inputs - MOVED TO BOTTOM AND STYLED */}
+        <div className="w-full max-w-lg mx-auto space-y-3 px-2 sm:px-0 mt-8 sm:mt-12"> 
+          <div className="relative text-center p-4 rounded-lg shadow-lg border-2 border-purple-500 bg-white dark:bg-black">
+            <label htmlFor="persona-select" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+              Persona
+            </label>
+            <select
+                id="persona-select"
+                value={selectedPersonaId}
+                onChange={handlePersonaChange}
+                className="w-full appearance-none rounded-lg border-2 border-purple-400 dark:border-purple-600 bg-white dark:bg-gray-800/50 py-2.5 pl-4 pr-10 text-center text-sm font-medium text-gray-900 dark:text-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+                {personas.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+            </select>
+            <ChevronDown size={18} className="absolute right-3 top-1/2 mt-3 text-gray-500 pointer-events-none" />
+          </div>
+
+          {/* Persona Description Display */}
+          {selectedPersona && selectedPersona.id !== 'custom' && (
+            <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded-lg text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 mt-3"> 
+                <p className="font-semibold mb-1">{selectedPersona.name}</p>
+                {selectedPersona.identity && <p className="mb-1">{selectedPersona.identity}</p>}
+                {selectedPersona.voiceTone && <p>{selectedPersona.voiceTone}</p>}
+            </div>
+          )}
+
+          {/* Custom Persona Input Fields */}
+          {selectedPersonaId === 'custom' && (
+            <div className="p-4 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 space-y-3 mt-3">
+              <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">Define Your Custom Persona</h3>
+              <div>
+                <label htmlFor="custom-name" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Name</label>
+                <input
+                  id="custom-name"
+                  type="text"
+                  name="name"
+                  value={customPersonaDetails.name || ''} 
+                  onChange={handleCustomPersonaChange}
+                  placeholder="e.g., My Professional Voice"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="custom-identity" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Identity</label>
+                <textarea
+                  id="custom-identity"
+                  name="identity"
+                  value={customPersonaDetails.identity || ''} 
+                  onChange={handleCustomPersonaChange}
+                  placeholder="Who is this persona? e.g., A seasoned marketing executive."
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
+                  required
+                ></textarea>
+              </div>
+              <div>
+                <label htmlFor="custom-voice-tone" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Voice & Tone</label>
+                <textarea
+                  id="custom-voice-tone"
+                  name="voiceTone"
+                  value={customPersonaDetails.voiceTone || ''} 
+                  onChange={handleCustomPersonaChange}
+                  placeholder="Describe the style: e.g., Informal, witty, and engaging. Avoid corporate jargon."
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
+                  required
+                ></textarea>
+              </div>
+              <div>
+                <label htmlFor="custom-core-rule" className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">Core Rule/Goal (Optional)</label>
+                <textarea
+                  id="custom-core-rule"
+                  name="coreRule" 
+                  value={customPersonaDetails.coreRule || customPersonaDetails.coreGoal || ''}
+                  onChange={handleCustomPersonaChange}
+                  placeholder="Specific instructions for the persona. e.g., Always use analogies. Do not use contractions."
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 resize-y"
+                ></textarea>
+              </div>
+            </div>
+          )}
+        </div> {/* End of Persona Selector & Custom Persona Inputs block */}
+
       </div>
     </main>
   );
