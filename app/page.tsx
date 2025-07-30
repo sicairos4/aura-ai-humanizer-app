@@ -1,10 +1,11 @@
 // app/page.tsx
-'use client'; 
+'use client'; // This directive is crucial for client-side components in Next.js App Router
 
 import React, { useState, useEffect } from 'react'; // Removed useMemo import
 import { Sparkles, LoaderCircle, Copy, Check, Info, Share2, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header'; 
 
+// Define the type for a persona to improve type safety
 interface Persona {
   id: string;
   name: string;
@@ -15,7 +16,7 @@ interface Persona {
   isCustom?: boolean;
 }
 
-// Define a more specific type for analysisResult, assuming its structure based on previous logs
+// Define a more specific type for analysisResult, assuming its structure
 interface AnalysisResult {
   writing_style_name: string;
   primary_tone: string;
@@ -35,8 +36,9 @@ export default function HomePage() {
   const [personas, setPersonas] = useState<Persona[]>([]); 
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('david'); 
   
+  // Custom persona details state, including 'name' as it's an input field
   const [customPersonaDetails, setCustomPersonaDetails] = useState<Omit<Persona, 'id' | 'isCustom'>>({
-    name: '', // Kept name here for the frontend input binding
+    name: '', 
     identity: '',
     voiceTone: '',
     coreRule: '',
@@ -46,11 +48,11 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [outputText, setOutputText] = useState<string>('');
-  // Corrected type for analysisResult to be AnalysisResult | null
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null); 
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
 
+  // --- Initial Data Fetching ---
   useEffect(() => {
     async function fetchPersonasData() {
       try {
@@ -75,30 +77,31 @@ export default function HomePage() {
     fetchPersonasData();
   }, []); 
 
-  // Removed unused useMemo for selectedPersona
-
+  // Helper to normalize newlines
   const normalizeOutputText = (text: string): string => {
     if (!text) return '';
+    // Replace multiple newlines with exactly two for consistent paragraph breaks,
+    // then trim any leading/trailing newlines.
     return text.replace(/\r\n|\r/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
   };
 
-
+  // --- Handlers ---
   const handlePersonaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const id = event.target.value;
     setSelectedPersonaId(id);
     if (id === 'custom') {
+      // Reset custom details including the name for the custom input field
       setCustomPersonaDetails({ name: '', identity: '', voiceTone: '', coreRule: '', coreGoal: '' });
     }
   };
 
   const handleCustomPersonaChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;
-    // For 'name' in customPersonaDetails, ensure it's handled properly within the type
-    if (name === 'name') {
-      setCustomPersonaDetails(prev => ({ ...prev, name: value }));
-    } else {
-      setCustomPersonaDetails(prev => ({ ...prev, [name]: value }));
-    }
+    // Update customPersonaDetails using a type assertion to allow dynamic property access
+    setCustomPersonaDetails(prev => ({
+      ...prev,
+      [name]: value
+    }) as Omit<Persona, 'id' | 'isCustom'>); // Assert the resulting type
   };
 
   const handleHumanize = async () => {
@@ -109,18 +112,21 @@ export default function HomePage() {
     setOutputText(''); 
     setError(null); 
 
+    // Define payload type more strictly: name is needed in customPersonaDetails for backend's PROFILE block construction
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
 
     if (selectedPersonaId === 'custom') {
-      if (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()) { 
+      // Validate custom persona fields before sending, using optional chaining for potentially undefined properties
+      if (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()) { 
         setError("Please provide a name, identity, and voice/tone for your custom persona.");
         setIsLoading(false);
         return;
       }
+      // Send all relevant custom details, including 'name'
       payload = {
         inputText,
         personaId: 'custom', 
-        customPersonaDetails: customPersonaDetails, // customPersonaDetails already has 'name' and is correctly typed to match Omit<Persona, 'id' | 'isCustom'>
+        customPersonaDetails: customPersonaDetails, 
       };
     } else {
       payload = {
@@ -160,11 +166,14 @@ export default function HomePage() {
     setError(null);
     try {
       const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inputText }) });
-      if (!response.ok) throw new Error((await response.json()).error || 'An error occurred.');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'An error occurred during analysis.');
+      }
       const data = await response.json();
-      setAnalysisResult(data.analysisData as AnalysisResult); // Explicitly cast the incoming data
+      setAnalysisResult(data.analysisData as AnalysisResult); // Explicitly cast the incoming data to AnalysisResult
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -236,7 +245,7 @@ export default function HomePage() {
                 <textarea
                   id="custom-identity"
                   name="identity"
-                  value={customPersonaDetails.identity}
+                  value={customPersonaDetails.identity || ''} // Added || '' for safety with textarea value
                   onChange={handleCustomPersonaChange}
                   placeholder="Who is this persona? e.g., A seasoned marketing executive."
                   rows={2}
@@ -249,7 +258,7 @@ export default function HomePage() {
                 <textarea
                   id="custom-voice-tone"
                   name="voiceTone"
-                  value={customPersonaDetails.voiceTone}
+                  value={customPersonaDetails.voiceTone || ''} // Added || '' for safety
                   onChange={handleCustomPersonaChange}
                   placeholder="Describe the style: e.g., Informal, witty, and engaging. Avoid corporate jargon."
                   rows={3}
@@ -302,7 +311,7 @@ export default function HomePage() {
             </button>
             <button
               onClick={handleHumanize}
-              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity.trim() || !customPersonaDetails.voiceTone.trim()))}
+              disabled={isLoading || isAnalyzing || !inputText.trim() || (selectedPersonaId === 'custom' && (!customPersonaDetails.name?.trim() || !customPersonaDetails.identity?.trim() || !customPersonaDetails.voiceTone?.trim()))}
               className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
             >
               {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
@@ -349,7 +358,7 @@ export default function HomePage() {
                     <div className="space-y-1">
                       <p><strong className="font-semibold">Clarity:</strong> {analysisResult.scores.clarity}/100</p>
                       <p><strong className="font-semibold">Confidence:</strong> {analysisResult.scores.confidence}/100</p>
-                      <p><strong className="font-semibold">Formality:</strong> {analysisResult.scores.formality}/100</p>
+                      <strong className="font-semibold">Formality:</strong> {analysisResult.scores.formality}/100</p>
                       <p><strong className="font-semibold">Engagement:</strong> {analysisResult.scores.engagement}/100</p>
                     </div>
                     {analysisResult.improvement_tips && analysisResult.improvement_tips.length > 0 && (
