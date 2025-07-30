@@ -1,7 +1,7 @@
 // app/page.tsx
 'use client'; // This directive is crucial for client-side components in Next.js App Router
 
-import React, { useState, useEffect } from 'react'; // Removed useMemo import
+import React, { useState, useEffect } from 'react'; 
 import { Sparkles, LoaderCircle, Copy, Check, Info, Share2, ChevronDown } from 'lucide-react';
 import { Header } from '@/components/Header'; 
 
@@ -356,9 +356,10 @@ export default function HomePage() {
                     <p><strong className="font-semibold">Style Name:</strong> {analysisResult.writing_style_name}</p>
                     <p><strong className="font-semibold">Primary Tone:</strong> {analysisResult.primary_tone} ({analysisResult.language})</p>
                     <div className="space-y-1">
+                      {/* FIX: Corrected missing <p> tag here */}
                       <p><strong className="font-semibold">Clarity:</strong> {analysisResult.scores.clarity}/100</p>
                       <p><strong className="font-semibold">Confidence:</strong> {analysisResult.scores.confidence}/100</p>
-                      <strong className="font-semibold">Formality:</strong> {analysisResult.scores.formality}/100</p>
+                      <p><strong className="font-semibold">Formality:</strong> {analysisResult.scores.formality}/100</p> 
                       <p><strong className="font-semibold">Engagement:</strong> {analysisResult.scores.engagement}/100</p>
                     </div>
                     {analysisResult.improvement_tips && analysisResult.improvement_tips.length > 0 && (
