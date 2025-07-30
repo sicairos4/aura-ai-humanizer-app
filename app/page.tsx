@@ -53,6 +53,10 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null); 
   const [hasCopied, setHasCopied] = useState<boolean>(false);
 
+  // New state for dynamic loading message
+  const [loadingMessage, setLoadingMessage] = useState<string>('Initializing...');
+  const [currentStep, setCurrentStep] = useState<number>(0); // 0: Init, 1: Applying Aura, 2: Checking AI, 3: Revising, 4: Finalizing
+
   // --- Initial Data Fetching ---
   useEffect(() => {
     async function fetchPersonasData() {
@@ -78,6 +82,40 @@ export default function HomePage() {
     fetchPersonasData();
   }, []); 
 
+  // Effect to cycle loading message based on currentStep
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    const baseMessages = [
+      "Initializing...",
+      "Applying Aura (1st pass)...",
+      "Checking AI Detection...",
+      "Revising for Human Touch...",
+      "Finalizing Output...",
+      "Analyzing input text..." // For analyze button
+    ];
+
+    if (isLoading || isAnalyzing) {
+      // For apply Aura, messages 0-4 depending on step
+      // For analyze, message 5
+      const currentDisplayedMessage = isAnalyzing ? baseMessages[5] : baseMessages[currentStep];
+
+      let dots = 0;
+      setLoadingMessage(`${currentDisplayedMessage}`); 
+      intervalId = setInterval(() => {
+        dots = (dots % 3) + 1; // Cycle 1, 2, 3 dots
+        setLoadingMessage(`${currentDisplayedMessage}${".".repeat(dots)}`);
+      }, 500); // Update dots every 500ms
+    } else {
+      setLoadingMessage('Working...'); // Reset message when not loading
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId); // Clean up interval
+      }
+    };
+  }, [isLoading, isAnalyzing, currentStep]); // Rerun effect when loading/analyzing state or step changes
+
   // Re-added useMemo for selectedPersona to display its details
   const selectedPersona = useMemo(() => personas.find(p => p.id === selectedPersonaId), [selectedPersonaId, personas]);
 
@@ -89,11 +127,19 @@ export default function HomePage() {
     return text.replace(/\r\n|\r/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
   };
 
+  // Helper function to calculate words from any given text string.
+  const calculateWords = (text: string): number => {
+    if (!text) return 0;
+    const trimmedText = text.trim();
+    if (trimmedText === '') return 0; // Handle case of only whitespace
+    return trimmedText.split(/\s+/).filter(word => word.length > 0).length;
+  };
+
   // --- Handlers ---
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setInputText(text);
-    setWordCount(text.trim().split(/\s+/).filter(word => word.length > 0).length);
+    setWordCount(calculateWords(text)); // Use helper function here
   };
 
   const handlePersonaChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -119,6 +165,7 @@ export default function HomePage() {
     setAnalysisResult(null); 
     setOutputText(''); 
     setError(null); 
+    setCurrentStep(0); // Reset step for humanize (will become 1 in useEffect if loading is true)
 
     let payload: { inputText: string; personaId?: string; customPersonaDetails?: Omit<Persona, 'id' | 'isCustom'> }; 
 
@@ -156,10 +203,14 @@ export default function HomePage() {
 
       const data = await response.json();
       setOutputText(normalizeOutputText(data.humanizedText));
+      // In a more advanced setup, backend could send currentStep updates
+      // Here, the messages just cycle, so no direct currentStep update here based on backend.
+      
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setIsLoading(false);
+      setCurrentStep(0); // Reset step on completion/error
     }
   };
 
@@ -169,6 +220,8 @@ export default function HomePage() {
     setOutputText(''); 
     setAnalysisResult(null);
     setError(null);
+    setCurrentStep(5); // Set specific step for analyze loading message
+
     try {
       const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inputText }) });
       if (!response.ok) {
@@ -181,6 +234,7 @@ export default function HomePage() {
       setError(err instanceof Error ? err.message : "Something went wrong during analysis.");
     } finally {
       setIsAnalyzing(false);
+      setCurrentStep(0); // Reset step on completion/error
     }
   };
   
@@ -199,16 +253,6 @@ export default function HomePage() {
       handleCopy();
     }
   };
-
-  // Helper function to calculate words from any given text string.
-  // Used for both input and output word counts to ensure consistency.
-  const calculateWords = (text: string): number => {
-    if (!text) return 0;
-    const trimmedText = text.trim();
-    if (trimmedText === '') return 0; // Handle case of only whitespace
-    return trimmedText.split(/\s+/).filter(word => word.length > 0).length;
-  };
-
 
   return (
     <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-gray-100">
@@ -244,7 +288,7 @@ export default function HomePage() {
               focus:ring-2 focus:ring-purple-500"
           >
             {isAnalyzing ? <LoaderCircle size={16} className="animate-spin" /> : <Info size={16}/>}
-            <span>{isAnalyzing ? 'Analyzing...' : 'Analyze'}</span>
+            <span>{isAnalyzing ? loadingMessage : 'Analyze'}</span>
           </button>
           <button
             onClick={handleHumanize}
@@ -252,22 +296,22 @@ export default function HomePage() {
             className="flex items-center justify-center gap-3 w-full lg:w-auto px-6 py-3 text-base font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 dark:focus:ring-offset-gray-900 transition-all disabled:opacity-50"
           >
             {isLoading ? <LoaderCircle size={20} className="animate-spin" /> : <Sparkles size={20} />}
-            <span>{isLoading ? 'Applying Aura...' : 'Apply Aura'}</span>
+            <span>{isLoading ? loadingMessage : 'Apply Aura'}</span>
           </button>
         </div>
 
         {/* Output Text Area Container */}
-        <div className="w-full max-w-screen-xl mx-auto"> {/* Ensured consistency with new wrapper */}
+        <div className="w-full max-w-screen-xl mx-auto"> 
           <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-700/50 rounded-lg shadow-sm min-h-[40vh] flex flex-col">
             <div className="p-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center flex-shrink-0">
               <label className="text-sm font-semibold text-gray-500 dark:text-gray-400">{analysisResult ? "Analysis Report" : "Humanized Output"}</label>
               {/* Output Word Count Display - using the new calculateWords helper */}
-              {outputText && !analysisResult ? ( // Only show if outputText exists and no analysisResult
+              {outputText && !analysisResult ? ( 
                 <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto mr-2">
                   {calculateWords(outputText)} words
                 </span>
               ) : null}
-              {outputText && !isLoading && !analysisResult && (
+              {outputText && !isLoading && !isAnalyzing && !analysisResult && ( // Show copy/share only if output text is ready and not loading/analyzing/analysis
                 <div className="flex gap-2">
                   <button onClick={handleCopy} className="p-1 hover:text-purple-600 dark:hover:text-purple-400 transition-colors rounded">
                     {hasCopied ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
@@ -279,8 +323,16 @@ export default function HomePage() {
               )}
             </div>
             {isLoading || isAnalyzing ? (
-              <div className="flex justify-center items-center h-full text-gray-500 dark:text-gray-400">
-                <LoaderCircle className="animate-spin" /> Working...
+              // Skeleton Loader / Loading Message Display
+              <div className="flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none overflow-y-auto">
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400 space-y-4">
+                  <LoaderCircle className="animate-spin text-purple-500" size={32} />
+                  <span className="text-lg font-semibold">{loadingMessage}</span>
+                  {/* Simple text line skeletons for perceived progress */}
+                  <div className="w-4/5 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                  <div className="w-3/5 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                  <div className="w-4/6 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                </div>
               </div>
             ) : (
               <div className="flex-grow p-3 text-sm font-normal text-gray-800 dark:text-gray-200 bg-transparent border-none rounded-b-lg focus:outline-none resize-none overflow-y-auto">
@@ -414,4 +466,3 @@ export default function HomePage() {
     </main>
   );
 }
-// TEMP CHANGE
